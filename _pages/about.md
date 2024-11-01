@@ -23,12 +23,13 @@ p, li {
 }
 </style>
 
-I am Jinbang Lai (赖金榜), a third-year master's student in Computer Science at [China Three Gorges University](https://eng.ctgu.edu.cn/). I received my B.Eng. from [Hangzhou Normal University](https://english.hznu.edu.cn/) in 2020.
+I am Jinbang Lai (赖金榜), a third-year master's student in Computer Science at [China Three Gorges University](https://eng.ctgu.edu.cn/). I received my Bachelor’s degree from [Hangzhou Normal University](https://english.hznu.edu.cn/) in 2020.
 
 
 
 # :microscope: Research
 My research interests lie at the intersection of deep reinforcement learning, large language models, and robotics. 
+
 I am always eager to discuss innovative research ideas and explore potential academic collaborations. Feel free to reach out via email if you’re interested in working together.
 
 
