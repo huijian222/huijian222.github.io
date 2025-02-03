@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>支付宝/微信CSV转Beancount</title>
+    <meta charset="utf-8">
+    <style>
+        body { max-width: 800px; margin: 20px auto; padding: 20px; font-family: sans-serif }
+        .container { display: grid; grid-gap: 20px }
+        textarea, pre { width: 100%; height: 200px; padding: 10px }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px }
+        button { padding: 10px 20px; background: #2196F3; color: white; border: none; cursor: pointer }
+        .error { color: red }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>支付宝/微信账单转换工具</h1>
+
+        <div class="row">
+            <div>
+                <h3>1. 选择账单类型并上传CSV</h3>
+                <select id="billType">
+                    <option value="alipay">支付宝账单</option>
+                    <option value="wechat">微信账单</option>
+                </select>
+                <input type="file" id="csvFile" accept=".csv">
+            </div>
+
+            <div>
+                <h3>2. 账户映射配置(YAML格式)</h3>
+                <textarea id="mappingConfig">
+                    # 账户映射配置
+                    # 通用配置 (支付宝和微信都适用)
+                    categories:
+                      餐饮美食: Expenses:Food:Meals  # 默认正餐
+                      日用百货: Expenses:Daily:Household # 日常百货，更贴合 Household
+                      购物: Expenses:Daily:Cloth       # 衣物购物
+                      交通出行: Expenses:Transport
+                      通信缴费: Expenses:Internet
+                      娱乐消遣: Expenses:Entertainment
+                      教育培训: Expenses:Education
+                      医疗健康: Expenses:MedicalCare
+                      生活服务: Expenses:Daily:Services  # 生活服务类支出
+                      转账: Expenses:Transfer
+                      红包: Income:Gift:RedPacket
+                      退款: Income:Refund
+                      工资收入: Income:CompanyName:Salary # 需要手动修改 CompanyName
+                      其他收入: Income:WindFall          # 意外收入
+                      理财: Assets:Investment:ZhangleGlobal # 默认涨乐全球通
+                      基金: Assets:Investment:IBKR       # 默认IBKR
+                      虚拟货币: Assets:Crypto:Binance     # 默认币安
+                      商业服务: Expenses:Fee:ServiceFee # 商业服务费，例如 软件服务费
+                    
+                    payees:
+                      # 常见商户，可以继续扩充
+                      十足便利店: Expenses:Daily:Household # 便利店购物归为日常百货
+                      麦当劳: Expenses:Food:FastFood      # 快餐
+                      肯德基: Expenses:Food:FastFood
+                      星巴克: Expenses:Food:Coffee
+                      微信红包: Income:Gift:RedPacket
+                      支付宝红包: Income:Gift:RedPacket
+                      饿了么: Expenses:Food:Meals       # 饿了么外卖
+                      美团: Expenses:Food:Meals        # 美团外卖
+                      拼多多平台商户: Expenses:Daily:Household # 拼多多购物归为日常百货
+                      网易严选: Expenses:Daily:Household # 网易严选购物归为日常百货
+                      抖音电商商家: Expenses:Daily:Household # 抖音电商购物归为日常百货
+                      松阳县为农供销有限公司: Expenses:Food:Groceries # 供销社超市，食品杂货为主
+                      丽水松阳万家惠店: Expenses:Daily:Household # 万家惠超市，日常百货为主
+                      # ... 可以根据交易对方继续添加payee映射
+                    
+                    payment_methods:
+                      银行卡: Assets:Bank:DebitCard # 通用银行卡支付
+                    
+                    default_expense: Expenses:Others  # 默认日常杂项支出
+                    default_income: Income:Other         # 默认其他收入
+                    asset_account: Assets:Web:PaymentAccount # 通用支付账户，需要根据选择的账单类型修改 asset_account
+                    
+                    # 支付宝特定配置
+                    alipay_payment_methods:
+                      银联(4105): Liabilities:Credit:信银国际大湾区  #  银联(4105) 映射到 建行储蓄卡 Assets:Bank:CCB
+                      "银联(4105)&碰一下立减": Liabilities:Credit:信银国际大湾区 # 银联碰一下立减 也映射到 建行储蓄卡
+                      "银联(4105)&红包": Liabilities:Credit:信银国际大湾区 # 银联红包 也映射到 建行储蓄卡
+                      "银联(4105)&商家单品优惠抵扣": Liabilities:Credit:信银国际大湾区 # 银联商家优惠 也映射到 建行储蓄卡
+                      建设银行储蓄卡(1989): Assets:Bank:CCB # 建设银行储蓄卡(1989) 映射到 建行储蓄卡
+                      工商银行信用卡(2233): Liabilities:Credit:CCB # 工商银行信用卡(2233) 映射到 工行信用卡 Liabilities:Credit:CCB
+                      "工商银行信用卡(2233)&工商银行立减": Liabilities:Credit:CCB # 工行信用卡立减 也映射到 工行信用卡
+                      农业银行信用卡(3735): Liabilities:Credit:农业银行 # 农业银行信用卡(3735) 映射到 农业银行信用卡 Liabilities:Credit:农业银行
+                      "农业银行信用卡(3735)&农业银行立减": Liabilities:Credit:农业银行 # 农业银行信用卡立减 也映射到 农业银行信用卡
+                      交通银行信用卡(8780): Liabilities:Credit:交通银行 # 交通银行信用卡(8780) 映射到 交通银行信用卡 Liabilities:Credit:交通银行
+                      中国银行信用卡(7414): Liabilities:Credit:中国银行 # 中国银行信用卡(7414) 映射到 中国银行信用卡 Liabilities:Credit:中国银行
+                      中信银行信用卡(8261): Liabilities:Credit:中信银行 # 中信银行信用卡(8261) 映射到 中信银行信用卡 Liabilities:Credit:中信银行
+                      "中信银行信用卡(8261)&中信银行立减": Liabilities:Credit:中信银行 # 中信银行信用卡立减 也映射到 中信银行信用卡
+                      网商银行储蓄卡(2906): Assets:Bank:亿联银行 # 网商银行储蓄卡(2906) 映射到 亿联银行 Assets:Bank:亿联银行
+                      "网商银行储蓄卡(2906)&网商银行福利金抵扣": Assets:Bank:亿联银行 # 网商银行福利金抵扣 也映射到 亿联银行
+                      支付宝: Assets:Web:AliPay # 支付宝账户余额
+                      余额宝: Assets:Web:AliPay:BalanceBao # 余额宝
+                      花呗: Liabilities:Huabei       # 花呗
+                      账户余额: Assets:Web:AliPay   # 账户余额，和支付宝账户余额一致
+                      Visa(9510): Assets:Bank:Fidelity # Visa(9510)  假设 Visa(9510) 是 Fidelity 账户，需要根据实际情况修改
+                      # ... 可以根据支付宝账单中出现的支付方式继续添加，例如 更多银行卡，其他类型的优惠抵扣等
+                    
+                    alipay_asset_account: Assets:Web:AliPay # 支付宝默认资产账户
+                    
+                    # 微信特定配置
+                    wechat_payment_methods:
+                      零钱: Assets:Web:WeChatPay
+                      银行卡: Assets:Bank:WeChatBank  # 微信绑定的银行卡
+                      # ... 微信支付方式映射 可以根据微信账单实际支付方式进行添加
+                    
+                    wechat_asset_account: Assets:Web:WeChatPay # 微信支付默认资产账户
+                </textarea>
+            </div>
+        </div>
+
+        <button onclick="processFile()">生成Beancount</button>
+
+        <h3>转换结果：</h3>
+        <pre id="output"></pre>
+        <button onclick="download()" id="downloadBtn" style="display: none">下载beancount文件</button>
+        <div id="errorMsg" class="error"></div>
+    </div>
+    <!-- 引入 js-yaml 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.js"></script>
+    <script>
+        let beancountData = '';
+
+function parseYAML(yamlText) {
+    try {
+        const config = jsyaml.load(yamlText);
+        console.log("YAML Config Parsed by js-yaml:", config);
+        return config;
+    } catch(e) {
+        showError('YAML解析错误: ' + e.message);
+        return null;
+    }
+}
+
+function parseCSV(csvText, billType) {
+    console.log("CSV Text Received:", csvText.substring(0, 200) + "...");
+    const rows = csvText.split('\n').filter(line => line.trim() !== '');
+    if (rows.length === 0) {
+        console.log("CSV Rows are empty after split and filter.");
+        return [];
+    }
+
+    let headerRowIndex = -1;
+    let possibleHeaders = [];
+
+    if (billType === 'alipay') {
+        possibleHeaders = ["交易时间", "交易分类", "交易对方", "对方账号", "商品说明", "收/支", "金额", "收/付款方式", "交易状态", "交易订单号", "商家订单号", "备注"];
+    } else if (billType === 'wechat') {
+        possibleHeaders = ["交易时间", "交易类型", "交易对方", "商品", "收/支", "金额(元)", "支付方式", "当前状态", "交易单号", "商户单号", "备注"];
+    } else {
+        showError("未知的账单类型");
+        return [];
+    }
+
+    for (let i = 0; i < rows.length; i++) {
+        const line = rows[i];
+        const matchedHeaders = possibleHeaders.filter(header => line.includes(header));
+        if (matchedHeaders.length >= 3) {
+            headerRowIndex = i;
+            console.log("Possible Header Row found at line", i + 1, ":", line);
+            break;
+        } else {
+            console.log("Line", i + 1, "is not a header row:", line);
+        }
+    }
+
+    if (headerRowIndex === -1) {
+        console.log("Could not find header row in CSV after more thorough check.");
+        showError("无法在CSV文件中找到表头行，请检查文件格式或提供文件表头行信息。");
+        return [];
+    }
+
+    const headers = rows[headerRowIndex].split(',').map(h => h.trim());
+    console.log("CSV Headers:", headers);
+
+    const records = rows.slice(headerRowIndex + 1).map(row => {
+        const values = row.split(',').map(v => v.trim());
+        const record = headers.reduce((obj, key, i) => {
+            obj[key] = values[i] || '';
+            return obj;
+        }, {});
+        return record;
+    });
+    console.log("CSV Records Parsed:", records);
+    return records;
+}
+
+function processFile() {
+    const file = document.getElementById('csvFile').files[0];
+    const billType = document.getElementById('billType').value; // 获取选择的账单类型
+    if(!file) return showError('请先选择CSV文件');
+    if(!billType) return showError('请选择账单类型');
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const csvText = e.target.result;
+        const mappingConfig = parseYAML(document.getElementById('mappingConfig').value);
+        if(!mappingConfig) return;
+
+        try {
+            const records = parseCSV(csvText, billType); // 传递 billType 给 parseCSV
+            if (!records || records.length === 0) {
+                showError('CSV文件解析后没有找到任何交易记录，请检查文件内容和格式。');
+                return;
+            }
+            beancountData = 'option "operating_currency" "CNY"\n\n';
+
+            records.forEach(record => {
+                if(!['收入', '支出'].includes(record['收/支'])) return;
+
+                const date = record['交易时间'].split(' ')[0];
+                let amount, payee, description, paymentMethod, category;
+
+                if (billType === 'alipay') {
+                    amount = parseFloat(record['金额']) * (record['收/支'] === '支出' ? -1 : 1);
+                    payee = record['交易对方'].split(',')[0];
+                    description = record['商品说明'].slice(0, 30);
+                    paymentMethod = record['收/付款方式'];
+                    category = record['交易分类'];
+                } else if (billType === 'wechat') {
+                    // **修改微信账单金额处理逻辑：移除 "¥" 符号后再解析**
+                    const amountString = record['金额(元)'].replace('¥', ''); // 移除 "¥" 符号
+                    amount = parseFloat(amountString) * (record['收/支'] === '支出' ? -1 : 1);
+                    payee = record['交易对方'];
+                    description = record['商品'].slice(0, 30);
+                    paymentMethod = record['支付方式'];
+                    category = record['交易类型'];
+                }
+
+
+                let account;
+                if (billType === 'alipay') {
+                    account = mappingConfig.alipay_payment_methods?.[paymentMethod] ||
+                              mappingConfig.payment_methods?.[paymentMethod] ||
+                              mappingConfig.payees?.[payee] ||
+                              mappingConfig.categories?.[category] ||
+                              (record['收/支'] === '支出' ? mappingConfig.default_expense : mappingConfig.default_income);
+                } else if (billType === 'wechat') {
+                    account = mappingConfig.wechat_payment_methods?.[paymentMethod] ||
+                              mappingConfig.payment_methods?.[paymentMethod] ||
+                              mappingConfig.payees?.[payee] ||
+                              mappingConfig.categories?.[category] ||
+                              (record['收/支'] === '支出' ? mappingConfig.default_expense : mappingConfig.default_income);
+                }
+
+
+                // **修改微信账单描述行，加入 payee (交易对方) 信息**
+                beancountData += `${date} * "${category} - ${payee} - ${description} - ${paymentMethod} - ${billType}"\n`;
+                beancountData += `  ${mappingConfig.asset_account}  ${-amount.toFixed(2)} CNY\n`;
+                beancountData += `  ${account}  ${amount.toFixed(2)} CNY\n\n`;
+            });
+
+            document.getElementById('output').textContent = beancountData;
+            document.getElementById('downloadBtn').style.display = 'block';
+        } catch(e) {
+            showError('CSV处理错误: ' + e.message);
+        }
+    };
+    reader.onerror = function() {
+        showError('读取CSV文件失败，请检查文件是否损坏或编码是否正确。');
+    };
+    reader.readAsText(file, 'GB2312');
+}
+
+function download() {
+    const billType = document.getElementById('billType').value;
+    const blob = new Blob([beancountData], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = billType === 'wechat' ? 'wechatpay.beancount' : 'alipay.beancount'; // 下载文件名根据账单类型变化
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function showError(msg) {
+    document.getElementById('errorMsg').textContent = msg;
+    setTimeout(() => document.getElementById('errorMsg').textContent = '', 3000);
+}
+
+    </script>
+</body>
+</html>
